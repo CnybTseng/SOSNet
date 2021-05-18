@@ -216,6 +216,14 @@ class SOSBlock(nn.Module):
             self.ag(output3) + self.ag(output4)
         output = self.conv2(output) + self.resiudal(input)
         return self.relu(output)
+    
+    @property
+    def in_channels(self):
+        return self._in_channels
+    
+    @property
+    def out_channels(self):
+        return self._out_channels
 
 class SOSNet(nn.Module):
     '''Shared and Omni-Scale Network.
@@ -231,9 +239,9 @@ class SOSNet(nn.Module):
     '''
     def __init__(self, arch={
             'conv1':  {'out_channels': 16},
-            'stage2': {'out_channels': 64, 'repeate': 2, 'out': False},
-            'stage3': {'out_channels': 96, 'repeate': 2, 'out': False},
-            'stage4': {'out_channels': 128, 'repeate': 2, 'out': False},
+            'stage2': {'out_channels': 64, 'repeate': 2, 'out': True},
+            'stage3': {'out_channels': 96, 'repeate': 2, 'out': True},
+            'stage4': {'out_channels': 128, 'repeate': 2, 'out': True},
             'conv5':  {'out_channels': 1024}},
         with_head=False, num_class=1000):
         super(SOSNet, self).__init__()
@@ -279,7 +287,9 @@ class SOSNet(nn.Module):
                 nn.ReLU(inplace=True))
             self.gap = nn.AvgPool2d(kernel_size=7)
             self.fc = nn.Linear(out_channels, num_class, bias=False)
-            self.arch['fc'] = {'out': True}
+            self.arch['fc'] = {'out_channels': num_class, 'out': True}
+            for stage in list(filter(lambda x: 'stage' in x, arch.keys())):
+                self.arch[stage]['out'] = False
         self._init_weights()
         
     def forward(self, input):
@@ -318,6 +328,14 @@ class SOSNet(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
     
+    @property
+    def out_channels(self):
+        _out_channels = {}
+        for key, value in self.arch.items():
+            if value.get('out', False):
+                _out_channels[key] = value['out_channels']
+        return _out_channels
+    
 if __name__ == '__main__':
     print('test SOSNet')
     x = torch.rand(64, 3, 224, 224)
@@ -325,3 +343,4 @@ if __name__ == '__main__':
     y = model(x)
     for yi in y:
         print(yi.shape)
+    print(model.out_channels)
